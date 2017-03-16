@@ -17,13 +17,9 @@ func main() {
 	doneChannel := make(chan bool)
 	
 	go extract(extractChannel)
-	fmt.Print("extract finished ")
-	fmt.Println(time.Since(start))
 	go transform(extractChannel, transformChannel)
-	fmt.Print("transform finished ")
-	fmt.Println(time.Since(start))
 	go load(transformChannel, doneChannel)
-	fmt.Print("load finished ")
+	
 	<- doneChannel
 	fmt.Println(time.Since(start))
 }
@@ -75,68 +71,56 @@ func transform(extractChannel, transformChannel chan *Order) {
 	}
 
 	//numMessages := 0
-	w := sync.WaitGroup{}
-
+	w:=sync.WaitGroup{}
 	for o := range extractChannel {
 		//numMessages++
 		w.Add(1)
 		go func(o *Order) {
-
-			time.Sleep(1 * time.Millisecond)
+			time.Sleep(3 * time.Millisecond)
 			o.UnitCost = productList[o.PartNumber].UnitCost
 			o.UnitPrice = productList[o.PartNumber].UnitPrice
 			transformChannel <- o
 			//numMessages--
-			//fmt.Println("transform message :",numMessages)
 			w.Done()
 		}(o)
 	}
-	w.Wait()
-
-	//
+	
 	//for ;numMessages > 0; {
 	//	time.Sleep(1 * time.Millisecond)
 	//}
-	//
+	w.Wait()
 	close(transformChannel)
-	fmt.Println("close channel transform")
-
-
 }
 
 func load(transformChannel chan *Order, doneChannel chan bool) {
 	f, _ := os.Create("./dest.txt")
 	defer f.Close()
 
-//	numMessages := 0
-//	numRoutine :=0
-
+	//numMessages := 0
+	w:=sync.WaitGroup{}
 	fmt.Fprintf(f, "%20s%15s%12s%12s%15s%15s\n",
 		"Part Number", "Quantity",
 		"Unit Cost", "Unit Price",
 		"Total Cost", "Total Price")
-	w := sync.WaitGroup{}
+
 	for o := range transformChannel {
 		//numMessages++
-		//numRoutine++
 		w.Add(1)
 		go func(o *Order) {
 			time.Sleep(1 * time.Millisecond)
-			//fmt.Println("routine no:",numRoutine)
 			fmt.Fprintf(f, "%20s %15d %12.2f %12.2f %15.2f %15.2f\n",
 				o.PartNumber, o.Quantity,
 				o.UnitCost, o.UnitPrice,
 				o.UnitCost*float64(o.Quantity),
 				o.UnitPrice*float64(o.Quantity))
-			w.Done()
 			//numMessages--
-			//fmt.Println("load message :",numMessages)
+			w.Done()
 		}(o)
 	}
-	w.Wait()
 	//for ;numMessages > 0; {
 	//	time.Sleep(1 * time.Millisecond)
 	//}
+	w.Wait()
 	doneChannel <- true
 }
 /* 4.6.1 - Intitial ETL with synchronous processing
